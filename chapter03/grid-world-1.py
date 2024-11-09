@@ -139,7 +139,7 @@ def figure_3_2():
                     new_value[i, j] += ACTION_PROB * (reward + DISCOUNT * value[next_i, next_j])
         if np.sum(np.abs(value - new_value)) < 1e-4:
             draw_image(np.round(new_value, decimals=2))
-            plt.savefig('reinforcement-learning-an-introduction/images/figure_3_2.png')
+            plt.savefig('/workspaces/reinforcement-learning-an-introduction/images/figure_3_2.png')
             plt.close()
             break
         value = new_value
@@ -167,9 +167,9 @@ def figure_3_2_linear_system():
         draw_image(np.round(x.reshape(WORLD_SIZE, WORLD_SIZE), decimals=2))
     except Exception as e:
         print('error')
-    # print("test")
-    # plt.savefig('reinforcement-learning-an-introduction/images/figure_3_2_linear_system.png')
-    # plt.close()
+    print("test")
+    plt.savefig('/workspaces/reinforcement-learning-an-introduction/images/figure_3_2_linear_system.png')
+    plt.close()
 
 def figure_3_5():
     value = np.zeros((WORLD_SIZE, WORLD_SIZE))
@@ -186,16 +186,145 @@ def figure_3_5():
                 new_value[i, j] = np.max(values)
         if np.sum(np.abs(new_value - value)) < 1e-4:
             draw_image(np.round(new_value, decimals=2))
-            plt.savefig('reinforcement-learning-an-introduction/images/figure_3_5.png')
+            plt.savefig('/workspaces/reinforcement-learning-an-introduction/images/figure_3_5.png')
             plt.close()
             draw_policy(new_value)
-            plt.savefig('reinforcement-learning-an-introduction/images/figure_3_5_policy.png')
+            plt.savefig('/workspaces/reinforcement-learning-an-introduction/images/figure_3_5_policy.png')
             plt.close()
             break
         value = new_value
+
+# Question 2
+def get_epsilon_greedy_policy(value_vector, epsilon):
+    """
+    Computes the epsilon-greedy policy following the formula:
+    At = argmax_a Qt(a) with probability 1-ε
+        random action with probability ε/|A|
+    
+    Parameters:
+    value_vector (numpy.ndarray): The value vector V
+    epsilon (float): The exploration rate ε
+    
+    Returns:
+    numpy.ndarray: The epsilon-greedy policy matrix
+    """
+    policy = np.zeros((WORLD_SIZE, WORLD_SIZE), dtype=np.int32)
+    num_actions = len(ACTIONS)  # |A| in the formula
+    
+    for i in range(WORLD_SIZE):
+        for j in range(WORLD_SIZE):
+            state = [i, j]
+            
+            # Calculate Q(a) values for each action
+            action_values = []
+            for action in ACTIONS:
+                next_state, reward = step(state, action)
+                action_values.append(reward + DISCOUNT * value_vector[next_state[0], next_state[1]])
+            
+             # Epsilon-greedy action selection
+            if np.random.random() < epsilon/num_actions:
+                # Explore: choose random action
+                policy[i, j] = np.random.randint(len(ACTIONS))
+            else:
+                # Exploit: choose best action
+                policy[i, j] = np.argmax(action_values)
+
+    print(policy)
+            
+    return policy
+
+# Question 3 
+def policy_iteration(epsilon):
+    """
+    Compute and return an optimal ε-greedy policy using policy iteration.
+    
+    Parameters:
+    epsilon (float): The exploration rate ε
+    
+    Returns:
+    tuple: (optimal policy, optimal value function)
+    """
+    # Initialize with a random policy
+    policy = np.random.randint(0, len(ACTIONS), (WORLD_SIZE, WORLD_SIZE), dtype=np.int32)
+    value = np.zeros((WORLD_SIZE, WORLD_SIZE))
+    num_actions = len(ACTIONS)  # |A| in the formula
+
+    
+    while True:
+        # 1. Policy Evaluation (similar to figure_3_2)
+        while True:
+            new_value = np.zeros_like(value)
+            for i in range(WORLD_SIZE):
+                for j in range(WORLD_SIZE):
+                    # Get the action from current policy
+                    action = ACTIONS[policy[i, j]]
+                    next_state, reward = step([i, j], action)
+                    # Bellman equation for the current policy
+                    new_value[i, j] = reward + DISCOUNT * value[next_state[0], next_state[1]]
+            
+            # Check for convergence
+            if np.sum(np.abs(value - new_value)) < 1e-4:
+                break
+            value = new_value
+        
+        # 2. Policy Improvement
+        policy_stable = True
+        for i in range(WORLD_SIZE):
+            for j in range(WORLD_SIZE):
+                old_action = policy[i, j]
+                
+                # Calculate value for all actions
+                action_values = []
+                for action in ACTIONS:
+                    next_state, reward = step([i, j], action)
+                    action_values.append(reward + DISCOUNT * value[next_state[0], next_state[1]])
+                
+                # ε-greedy policy improvement
+                if np.random.random() < epsilon/num_actions:
+                    policy[i, j] = np.random.randint(len(ACTIONS))
+                else:
+                    policy[i, j] = np.argmax(action_values)
+                
+                if old_action != policy[i, j]:
+                    policy_stable = False
+        
+        # Save current state using provided drawing functions
+        try:
+            draw_image(np.round(value, decimals=2))
+            draw_policy(value)
+            plt.savefig(f'/workspaces/reinforcement-learning-an-introduction/images/policy_iteration_eps_{epsilon}.png')
+            plt.close()
+        except Exception as e:
+            print(f"Error in drawing: {e}")
+        
+        # Check if policy has converged
+        if policy_stable:
+            print(f"Policy converged for ε = {epsilon} with policy: {policy} and value: {value}")
+            return policy, value
 
 
 if __name__ == '__main__':
     figure_3_2_linear_system()
     figure_3_2()
     figure_3_5()
+    # epsilon greedy for a random value vector
+    value_vector = np.random.rand(WORLD_SIZE, WORLD_SIZE)
+    epsilon = 0.1
+    policy = get_epsilon_greedy_policy(value_vector, epsilon)
+
+    # policy iteration
+    # # Test with ε = 0.2
+    # print("Testing with ε = 0.2")
+    # policy_0_2, value_0_2 = policy_iteration(0.2)
+    # print("Policy (ε = 0.2):")
+    # print(policy_0_2)
+    # print("\nValue function (ε = 0.2):")
+    # print(np.round(value_0_2, 2))
+    
+    # # Test with ε = 0.0
+    # print("\nTesting with ε = 0.0")
+    # policy_0_0, value_0_0 = policy_iteration(0.0)
+    # print("Policy (ε = 0.0):")
+    # print(policy_0_0)
+    # print("\nValue function (ε = 0.0):")
+    # print(np.round(value_0_0, 2))

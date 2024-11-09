@@ -137,7 +137,7 @@ def figure_3_2():
                     new_value[i, j] += ACTION_PROB * (reward + DISCOUNT * value[next_i, next_j])
         if np.sum(np.abs(value - new_value)) < 1e-4:
             draw_image(np.round(new_value, decimals=2))
-            plt.savefig('reinforcement-learning-an-introduction/images/figure_3_2.png')
+            plt.savefig('/workspaces/reinforcement-learning-an-introduction/images/figure_3_2.png')
             plt.close()
             break
         value = new_value
@@ -166,7 +166,7 @@ def figure_3_2_linear_system():
     except Exception as e:
         print('error')
     # print("test")
-    # plt.savefig('reinforcement-learning-an-introduction/images/figure_3_2_linear_system.png')
+    # plt.savefig('/workspaces/reinforcement-learning-an-introduction/images/figure_3_2_linear_system.png')
     # plt.close()
 
 def figure_3_5():
@@ -184,13 +184,14 @@ def figure_3_5():
                 new_value[i, j] = np.max(values)
         if np.sum(np.abs(new_value - value)) < 1e-4:
             draw_image(np.round(new_value, decimals=2))
-            plt.savefig('reinforcement-learning-an-introduction/images/figure_3_5.png')
+            plt.savefig('/workspaces/reinforcement-learning-an-introduction/images/figure_3_5.png')
             plt.close()
             draw_policy(new_value)
-            plt.savefig('reinforcement-learning-an-introduction/images/figure_3_5_policy.png')
+            plt.savefig('/workspaces/reinforcement-learning-an-introduction/images/figure_3_5_policy.png')
             plt.close()
             break
         value = new_value
+
 
 
 if __name__ == '__main__':
