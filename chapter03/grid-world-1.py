@@ -6,6 +6,8 @@
 # declaration at the top                                              #
 #######################################################################
 
+# guys look at draw_image()
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
