@@ -198,7 +198,7 @@ def figure_3_5():
 def get_epsilon_greedy_policy(value_vector, epsilon):
     """
     Computes the epsilon-greedy policy following the formula:
-    At = argmax_a Qt(a) with probability 1-ε
+    At = argmax_a Qt(a) with probability 1-ε+ε/|A|
         random action with probability ε/|A|
     
     Parameters:
@@ -213,27 +213,28 @@ def get_epsilon_greedy_policy(value_vector, epsilon):
     
     for i in range(WORLD_SIZE):
         for j in range(WORLD_SIZE):
-            state = [i, j]
+            if (i == 0 and j == WORLD_SIZE-1):
+                # Skip terminal state
+                continue
+
             
             # Calculate Q(a) values for each action
             action_values = []
             for action in ACTIONS:
-                next_state, reward = step(state, action)
+                next_state, reward = step([i, j], action)
                 action_values.append(reward + DISCOUNT * value_vector[next_state[0], next_state[1]])
             
-             # Epsilon-greedy action selection
-            if np.random.random() < epsilon/num_actions:
-                # Explore: choose random action
-                policy[i, j] = np.random.randint(len(ACTIONS))
-            else:
-                # Exploit: choose best action
-                policy[i, j] = np.argmax(action_values)
+            # ε-greedy policy - deerministic
+            greedy_action = np.argmax(action_values)
+            p = np.full(num_actions, epsilon/num_actions) # equal probability for all actions
+            p[greedy_action] += 1 - epsilon 
+            policy[i, j] = np.random.choice(np.arange(num_actions), p=p)
 
-    print(policy)
-            
+    # print("\nEpsilon-Greedy Policy for the given Value Vector:")
+    # print(policy)
+           
     return policy
 
-# Question 3 
 def policy_iteration(epsilon):
     """
     Compute and return an optimal ε-greedy policy using policy iteration.
@@ -242,66 +243,127 @@ def policy_iteration(epsilon):
     epsilon (float): The exploration rate ε
     
     Returns:
-    tuple: (optimal policy, optimal value function)
+    optimal policy
     """
-    # Initialize with a random policy
-    policy = np.random.randint(0, len(ACTIONS), (WORLD_SIZE, WORLD_SIZE), dtype=np.int32)
-    value = np.zeros((WORLD_SIZE, WORLD_SIZE))
-    num_actions = len(ACTIONS)  # |A| in the formula
-
-    
-    while True:
-        # 1. Policy Evaluation (similar to figure_3_2)
+    value = np.zeros((WORLD_SIZE, WORLD_SIZE)) #(A)
+    num_actions = len(ACTIONS) 
+    k = 0 # (B)
+    policy = get_epsilon_greedy_policy(value, epsilon) #(C)
+    policy_stable = False
+     
+    #Repeat until policy is stable i.e converged 
+    while not policy_stable:
+        # 1. Policy Evaluation
         while True:
             new_value = np.zeros_like(value)
+            delta = 0
             for i in range(WORLD_SIZE):
                 for j in range(WORLD_SIZE):
-                    # Get the action from current policy
-                    action = ACTIONS[policy[i, j]]
-                    next_state, reward = step([i, j], action)
-                    # Bellman equation for the current policy
-                    new_value[i, j] = reward + DISCOUNT * value[next_state[0], next_state[1]]
-            
+                    if (i == 0 and j == WORLD_SIZE - 1):  # Skip terminal state
+                        continue
+
+                    greedy_action = policy[i, j]
+                    state_value = 0
+                    # Calculate value for all actions: Σ π_k(a|s)[R(s,a) + γV(s')]
+                    for action_idx in range(num_actions):
+                        if action_idx == greedy_action:
+                            action_prob = 1 - epsilon + epsilon / num_actions
+                        else:
+                            action_prob = epsilon / num_actions
+                        action = ACTIONS[action_idx]
+                        next_state, reward = step([i, j], action)
+                        action_value = reward + DISCOUNT * value[next_state[0], next_state[1]]
+                        state_value += action_prob * action_value
+                    new_value[i, j] = state_value
+                    delta = max(delta, abs(value[i, j] - state_value))
+
+            value = new_value.copy()
             # Check for convergence
-            if np.sum(np.abs(value - new_value)) < 1e-4:
+            if delta < 1e-4:
                 break
-            value = new_value
-        
+
         # 2. Policy Improvement
-        policy_stable = True
+        policy_stable = True  # Assume policy is stable unless changes occur
+        # reiterating get_epsilon_greedy_policy to update but not using the function as it yields different results.
         for i in range(WORLD_SIZE):
             for j in range(WORLD_SIZE):
+                if (i == 0 and j == WORLD_SIZE - 1):
+                    continue
+
                 old_action = policy[i, j]
-                
-                # Calculate value for all actions
                 action_values = []
+                # Calculate Q(a) values for each action
                 for action in ACTIONS:
                     next_state, reward = step([i, j], action)
                     action_values.append(reward + DISCOUNT * value[next_state[0], next_state[1]])
                 
-                # ε-greedy policy improvement
-                if np.random.random() < epsilon/num_actions:
-                    policy[i, j] = np.random.randint(len(ACTIONS))
-                else:
-                    policy[i, j] = np.argmax(action_values)
-                
+                greedy_action = np.argmax(action_values)
+                p = np.full(num_actions, epsilon / num_actions)
+                p[greedy_action] += 1 - epsilon 
+                policy[i, j] = np.random.choice(np.arange(num_actions), p=p)
+                policy[i, j] = greedy_action
+                # e-greedy policy is not converging for epsilon = 0.2, it does for deterministic.
                 if old_action != policy[i, j]:
-                    policy_stable = False
-        
-        # Save current state using provided drawing functions
-        try:
-            draw_image(np.round(value, decimals=2))
-            draw_policy(value)
-            plt.savefig(f'/workspaces/reinforcement-learning-an-introduction/images/policy_iteration_eps_{epsilon}.png')
-            plt.close()
-        except Exception as e:
-            print(f"Error in drawing: {e}")
-        
-        # Check if policy has converged
-        if policy_stable:
-            print(f"Policy converged for ε = {epsilon} with policy: {policy} and value: {value}")
-            return policy, value
+                    policy_stable = False  # Policy has changed
 
+        k += 1
+        print(f"Iteration {k} completed.")
+
+    print(f"\nPolicy Iteration Converged after {k} iterations for ε = {epsilon}")
+    try:
+        draw_image(np.round(value, decimals=2))
+        plt.savefig(f'/workspaces/reinforcement-learning-an-introduction/images/policy_iteration_value_{epsilon}_.png')
+        plt.close()
+
+        draw_policy(policy)
+        plt.savefig(f'/workspaces/reinforcement-learning-an-introduction/images/policy_iteration_eps_{epsilon}_.png')
+        plt.close()
+    except Exception as e:
+        print(f"Error in drawing: {e}")
+    print("Optimal Policy:")    
+    print(f"Optimal Policy:\n{policy}")
+    print(f"Optimal Value Function:\n{value}")
+    return policy
+        
+        
+#Question 3 - modifying the function figure_3_2_linear_system to return the value function for the given policy
+def v_pi_linear_system_2(policy):
+    '''
+    Solve the linear system of equations to find Vπ(s) for a given policy π.
+    We build the system (I - γPπ)Vπ = Rπ where Pπ and Rπ are based on the input policy.
+    
+    Parameters:
+    policy (numpy.ndarray): Policy matrix of shape (WORLD_SIZE, WORLD_SIZE) containing actions (0-3)
+    
+    Returns:
+    numpy.ndarray: The value function Vπ for the given policy
+    '''
+    A = -1 * np.eye(WORLD_SIZE * WORLD_SIZE)
+    b = np.zeros(WORLD_SIZE * WORLD_SIZE)
+    for i in range(WORLD_SIZE):
+        for j in range(WORLD_SIZE):
+            s = [i, j]  # current state
+            index_s = np.ravel_multi_index(s, (WORLD_SIZE, WORLD_SIZE))
+            action = ACTIONS[policy[i, j]]
+            s_, r = step(s, action)
+            index_s_ = np.ravel_multi_index(s_, (WORLD_SIZE, WORLD_SIZE))
+
+            A[index_s, index_s_] += DISCOUNT
+            b[index_s] -= r
+
+
+    v_pi = np.linalg.solve(A, b)
+    v_pi = v_pi.reshape(WORLD_SIZE, WORLD_SIZE)
+    try:
+        print("\nValue Function for the Given Policy:")
+        print(np.round(v_pi, 2))
+        draw_image(np.round(v_pi, decimals=2))
+    except Exception as e:
+        print('error')
+    plt.savefig('/workspaces/reinforcement-learning-an-introduction/images/v_pi_for_policy_pi.png')
+    plt.close()
+
+    return v_pi
 
 if __name__ == '__main__':
     figure_3_2_linear_system()
@@ -309,8 +371,14 @@ if __name__ == '__main__':
     figure_3_5()
     # epsilon greedy for a random value vector
     value_vector = np.random.rand(WORLD_SIZE, WORLD_SIZE)
-    epsilon = 0.1
+    epsilon = 0.2
     policy = get_epsilon_greedy_policy(value_vector, epsilon)
+    policy = policy_iteration(epsilon)
+    policy = policy_iteration(0)
+    v_pi = v_pi_linear_system_2(policy)
+    # use the value vector from the previous question and computing epsilon greedy policy as a test.
+    policy = get_epsilon_greedy_policy(v_pi, epsilon)
+
 
     # policy iteration
     # # Test with ε = 0.2
